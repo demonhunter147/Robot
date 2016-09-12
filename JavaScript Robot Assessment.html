@@ -1,0 +1,429 @@
+﻿<!DOCTYPE html>
+
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+
+    <title>JavaScript Robot Assessment</title>
+
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!--Font Files-->
+    <link href="https://fonts.googleapis.com/css?family=Baloo+Bhaina|Oswald" rel="stylesheet">
+
+    <!--CSS Files -->
+
+    <link rel="stylesheet" href="http://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.6.3/css/font-awesome.min.css">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+
+    <style>
+
+        body{
+            text-align:center;
+            background-color:#000;
+            font-family: 'Oswald', sans-serif;
+            color:#fff;
+        }
+
+        h1 {
+            color: #8d006c;
+            font-family: 'Baloo Bhaina', cursive;
+            letter-spacing: 0.15em;
+            font-size: 350%;
+        }
+
+        #remoteControl:before,
+        #remoteControl:after{
+            width:100%;
+            height:100%;
+            position:absolute;
+            top:0;
+            left:0;
+        }
+
+        #remoteControl{
+            padding:2em;
+            border: 4px solid blue;
+            background:#4d4d4d;
+            background: -webkit-repeating-linear-gradient(#4d4d4d, #7f7f7f 1%, #d3d3d3 3%);
+            background: -o-repeating-linear-gradient(#4d4d4d, #7f7f7f 1%, #d3d3d3 3%);
+            background: -moz-repeating-linear-gradient(#4d4d4d, #7f7f7f 1%, #d3d3d3 3%);
+            background: repeating-linear-gradient(#4d4d4d, #7f7f7f 1%, #d3d3d3 3%);
+            -webkit-border-radius: 15px;
+            -moz-border-radius: 15px;
+            border-radius: 15px;
+
+        }
+
+        /*Button Styles*/
+
+        #leftButton, #rightButton, #moveButton, #reportButton{
+            -webkit-border-radius: 100px;
+            -moz-border-radius: 100px;
+            border-radius: 100px;
+        }
+
+        #moveButton{
+            position:relative;
+            top:-1em;
+            background-color:yellow;
+        }
+
+        #leftButton, #rightButton{
+            position:relative;
+            top:1em;
+        }
+
+       #rightButton {
+            background-color: green;
+        }
+
+        #leftButton {
+            background-color: red;
+        }
+
+        #reportButton {
+            background-color: #02f9fb;
+        }
+
+
+        /*Board*/
+
+        #gameBoard {
+            width: 50%;
+            height: auto;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        @media(max-width:850px) {
+            #gameBoard {
+                width: 100%;
+            }
+        }
+
+        #commandInput {
+            font-size: 1em;
+        }
+
+        #position{
+            display:none;
+        }
+
+        #currentPosition {
+            color: Red;
+        }
+
+    </style>
+
+
+</head>
+<body class="container" onload="init()">
+
+    <h1>Robot Game</h1>
+    <h3>Move the Robot around the board using the controls below:</h3>
+
+    <div>
+        <strong id="position">Current Position:<br /> <span id="currentPosition"></span></strong>
+    </div>
+
+    <div class="row">
+        <div id="remoteControl" class="col-xs-offset-2 col-xs-8 col-md-4 col-md-offset-4">
+            <div class="row">
+                <div class="col-xs-8">
+                    <button id="leftButton" onclick="turnRobot('left')"><i class="fa fa-arrow-left" aria-hidden="true"></i></button>
+                    <button id="moveButton" onclick="moveRobot()"><i class="fa fa-arrow-up" aria-hidden="true"></i></button>
+                    <button id="rightButton" onclick="turnRobot('right')"><i class="fa fa-arrow-right" aria-hidden="true"></i></button>
+                </div>
+                <div class="col-xs-4">
+                    <button id="reportButton" onclick="reportPosition()"><i class="fa fa-question-circle" aria-hidden="true"></i></button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <canvas id="gameBoard" width="601" height="601"></canvas>
+
+    <h2>Or enter your own commands here:</h2>
+    <br />
+    <div class="form-group row">
+        <div class="col-md-1 col-md-offset-1 col-xs-4 col-xs-offset-4">
+            <label for="commandInput" class="control-label">Command: </label>
+        </div>
+        <div class="col-md-9 col-xs-12">
+            <input type="text" id="commandInput" class="form-control" onfocusout="processCommand(this.value)" onkeydown="if (event.keyCode == 13) processCommand(this.value);">
+        </div>
+    </div>
+
+
+    <script>
+        var commandInitiated = false;
+        var reportMessage = document.getElementById("currentPosition");
+
+        var facing = ['NORTH', 'SOUTH', 'EAST', 'WEST'];
+        var maxX = 4;
+        var maxY = 4;
+
+        var robot = null;
+        var currentPos = {};
+
+        var canvas = document.getElementById("gameBoard");
+        var context = canvas.getContext("2d");
+
+        var imageObj = new Image();
+
+        function checkXisValid(axis) {
+            if (isNaN(axis)) {
+                alert("Please ensure you enter a number for the horizontal axis!");
+                return false;
+            } else if (axis < 0 || axis > maxX) {
+                alert("Oops - you can't go that far horizontally");
+                return false;
+            } else {
+                return true;
+            }
+        }
+
+        function checkYisValid(axis) {
+            if (isNaN(axis)) {
+                alert("Please ensure you enter a number for the vertical axis!");
+                return false;
+            } else if (axis < 0 || axis > maxY) {
+                alert("Oops - you can't go that far vertically")
+                return false;
+            } else {
+                return true;
+            }
+        }
+
+        function validF(face) {
+            if (facing.indexOf(face) === -1) {
+                alert("Facing the wrong way!");
+                return false;
+            } else {
+                return true;
+            }
+        }
+
+        function Robot(x, y, f) {
+            this.x = x;
+            this.y = y;
+            this.f = f;
+        }
+
+        function place(posCmd) {
+            var newPos = posCmd.split(","); // get x y f from the command
+            var newX = parseInt(newPos[0].trim());
+            var newY = parseInt(newPos[1].trim());
+            var newF = newPos[2].trim().toUpperCase();
+            if (checkXisValid(newX) && checkYisValid(newY) && validF(newF)) {
+                robot.x = newX;
+                robot.y = newY;
+                robot.f = newF;
+
+                (robot);
+            }
+        }
+
+        function move() {
+            switch (currentPos.f) {
+                case "NORTH":
+                    var newY = currentPos.y + 1;
+                    if (checkYisValid(newY)) {
+                        robot.y = newY;
+                        drawRobot(robot);
+                    }
+                    break;
+                case "SOUTH":
+                    var newY = currentPos.y - 1;
+                    if (checkYisValid(newY)) {
+                        robot.y = newY;
+                        drawRobot(robot);
+                    }
+                    break;
+                case "EAST":
+                    var newX = currentPos.x + 1;
+                    if (checkXisValid(newX)) {
+                        robot.x = newX;
+                        drawRobot(robot);
+                    }
+                    break;
+                case "WEST":
+                    var newX = currentPos.x - 1;
+                    if (checkXisValid(newX)) {
+                        robot.x = newX;
+                        drawRobot(robot);
+                    }
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        function rotate(direction) {
+            if (direction === "left") {
+                switch (currentPos.f) {
+                    case "NORTH":
+                        robot.f = "WEST";
+                        break;
+                    case "SOUTH":
+                        robot.f = "EAST";
+                        break;
+                    case "EAST":
+                        robot.f = "NORTH";
+                        break;
+                    case "WEST":
+                        robot.f = "SOUTH";
+                        break;
+                    default:
+                        break;
+                }
+            } else if (direction === "right") {
+                switch (currentPos.f) {
+                    case "NORTH":
+                        robot.f = "EAST";
+                        break;
+                    case "SOUTH":
+                        robot.f = "WEST";
+                        break;
+                    case "EAST":
+                        robot.f = "SOUTH";
+                        break;
+                    case "WEST":
+                        robot.f = "NORTH";
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
+
+        function report() {
+            var positionMessage = document.getElementById("position");
+            reportMessage.innerHTML = robot.x + "," + robot.y + "," + robot.f;
+            positionMessage.style.display = 'block';
+        }
+
+        function callPlaceCommand(){
+            processCommand('PLACE ' + robot.x + "," + robot.y + "," + robot.f)
+        }
+
+        function turnRobot(direction) {
+            callPlaceCommand();
+            rotate(direction);
+        }
+
+        function moveRobot() {
+            callPlaceCommand();
+            move();
+        }
+
+        function reportPosition() {
+            callPlaceCommand();
+            report();
+        }
+
+        function processCommand(command) {
+            console.log(command);
+
+            currentPos = {
+                x: robot.x,
+                y: robot.y,
+                f: robot.f
+            };
+            var completeCmd = command.split(" ");
+            var literalCmd = completeCmd[0].toUpperCase(); // get either PLACE, MOVE, LETF, RIGHT, REPORT or soemthing else
+
+            if (commandInitiated) {
+                switchLiteralCommand(literalCmd, completeCmd);
+            } else if ((!commandInitiated && literalCmd === 'PLACE')) {
+                commandInitiated = true;
+                var posCmd = completeCmd.slice(1).join(""); // avoid scenarios when user types extra spaces after coordinates e.g. place 2, 2,  north
+                place(posCmd);
+            } else {
+                alert("The first command to the robot must be a PLACE command!");
+            }
+        }
+
+        function switchLiteralCommand(literalCmd, completeCmd) {
+            switch (literalCmd) {
+                case "PLACE":
+                    var posCmd = completeCmd.slice(1).join(""); // avoid scenarios when user types extra spaces after coordinates e.g. place 2, 2,  north
+                    place(posCmd);
+                    break;
+                case "MOVE":
+                    move();
+                    break;
+                case "LEFT":
+                    rotate("left");
+                    break;
+                case "RIGHT":
+                    rotate("right");
+                    break;
+                case "REPORT":
+                    report();
+                    break;
+                default:
+                    alert("Invalid command!");
+                    break;
+            }
+
+        }
+
+        function clearCurrentRobot(currentX, currentY) {
+            var axisX = currentX * 100 + 51;
+            var axisY = (5 - currentY) * 100 - 49;
+            context.clearRect(axisX, axisY, 98, 98);
+        }
+
+        function drawRobot(newRobot) {
+            clearCurrentRobot(currentPos.x, currentPos.y); // clear the current robot first
+            context.beginPath();
+            var axisX = ((newRobot.x + 1) * 100) - 37.5;
+            var axisY = ((5 - newRobot.y) * 100)-37.5;
+            var width = 75;
+            var height = 75;
+            imageObj.onload = function () {
+                context.drawImage(imageObj, axisX, axisY, width, height);
+            };
+            imageObj.src = 'http://pc.watch.impress.co.jp/docs/2004/0127/robot1.jpg';
+            var startX = currentPos.x;
+            var startY = currentPos.y;
+            clearCurrentRobot(currentPos.x, currentPos.y);
+            context.restore();
+            //drawRotatedImage(startX, startY, width, height, 90);
+        }
+
+        function drawRotatedImage(x, y, width, height, degrees) {
+
+            context.save();
+            context.beginPath();
+            context.translate(x + width / 2, y + height / 2);
+            context.rotate(degrees * Math.PI / 180);
+            context.drawImage(imageObj, -width / 2, -height / 2, width, height);
+            imageObj.src = 'http://pc.watch.impress.co.jp/docs/2004/0127/robot1.jpg';
+
+            context.restore();
+
+        }
+
+        function init() {
+            for (var x = 50; x < 650; x += 100) {
+                context.moveTo(x, 50);
+                context.lineTo(x, 550);
+            }
+
+            for (var y = 50; y < 650; y += 100) {
+                context.moveTo(50, y);
+                context.lineTo(550, y);
+            }
+
+            context.strokeStyle = "#4d4d4d";
+            context.stroke();
+
+            robot = new Robot(2, 2, "EAST");
+            drawRobot(robot);
+        }
+
+    </script>
+
+</body>
+</html>
